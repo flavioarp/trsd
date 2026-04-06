@@ -1,17 +1,24 @@
-PROVIDER=provider
-CONSUMER=consumer
+APP_PROVIDER=provider
+APP_CONSUMER=consumer
 
-.PHONY: all clean
+.PHONY: all build run clean
 
-all: $(PROVIDER) $(CONSUMER)
+all: build
 
-$(PROVIDER): provider.go
-	go build -o $(PROVIDER) provider.go
+build:
+	go build -o build/$(APP_PROVIDER) provider.go
+	go build -o build/$(APP_CONSUMER) consumer.go
 
-$(CONSUMER): consumer.go
-	go build -o $(CONSUMER) consumer.go
+run-provider:
+	./build/$(APP_PROVIDER)
+
+run-provider-pdfa:
+	./build/$(APP_PROVIDER) pdfa
+
+run-consumer:
+	./build/$(APP_CONSUMER)
 
 clean:
-	rm -f $(PROVIDER) $(CONSUMER)
-	killall provider
-	killall consumer
+	rm -f build/$(APP_PROVIDER) build/$(APP_CONSUMER)
+	pkill -f $(APP_PROVIDER) || true
+	pkill -f $(APP_CONSUMER) || true

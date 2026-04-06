@@ -4,107 +4,92 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
-var providerURL = "http://localhost:8081"
-var fallbackMode = false
+const providerURL = "http://localhost:8081"
 
-func callProvider() {
+type Knowledge struct {
+	mu           sync.RWMutex
+	fallbackMode bool
+}
+
+var k = &Knowledge{}
+
+func monitor() bool {
+	resp, err := http.Get(providerURL + "/pdfa")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
+}
+
+func analyze(ok bool) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if !ok && !k.fallbackMode {
+		fmt.Println("(A) Provider indisponível -> ativando fallback")
+		k.fallbackMode = true
+	}
+
+	if ok && k.fallbackMode {
+		fmt.Println("(A) Provider recuperado -> desativando fallback")
+		k.fallbackMode = false
+	}
+}
+
+func plan() bool {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	return k.fallbackMode
+}
+
+func execute(w http.ResponseWriter, fallback bool) {
+	if fallback {
+		localPDFA(w)
+		return
+	}
 
 	resp, err := http.Get(providerURL + "/pdfa")
-
-	if err != nil {
-		fmt.Println("[CONSUMER] erro ao conectar no provider")
-		enableFallback()
+	if err != nil || resp.StatusCode == 503 {
+		fmt.Println("(E) falha -> fallback")
+		localPDFA(w)
 		return
 	}
-
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		fmt.Println("[CONSUMER] provider não suporta /pdfa")
-		enableFallback()
-		return
-	}
-
 	body, _ := io.ReadAll(resp.Body)
-
-	fmt.Println("[CONSUMER] resposta do provider:", string(body))
+	w.Write(body)
 }
 
-func enableFallback() {
-
-	if !fallbackMode {
-		fmt.Println("################################")
-		fmt.Println("[CONSUMER] ATIVANDO MODO FALLBACK")
-		fmt.Println("################################")
-	}
-
-	fallbackMode = true
+// Knowledge action
+func localPDFA(w http.ResponseWriter) {
+	fmt.Println("(K) Gerando PDF/A local")
+	w.Write([]byte("PDF/A gerado localmente"))
 }
 
-func localPDFA(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("[CONSUMER] executando geração LOCAL de PDF/A")
-	w.Write([]byte("PDF/A gerado localmente (fallback)"))
-}
-
-func healthMonitor() {
-
+func mape() {
 	for {
 		time.Sleep(5 * time.Second)
-
-		if fallbackMode {
-			fmt.Println("[CONSUMER] verificando se provider voltou...")
-
-			resp, err := http.Get(providerURL + "/pdfa")
-
-			if err == nil && resp.StatusCode == 200 {
-
-				fmt.Println("********************************")
-				fmt.Println("[CONSUMER] provider recuperado!")
-				fmt.Println("********************************")
-
-				fallbackMode = false
-			}
-		}
+		ok := monitor()
+		analyze(ok)
 	}
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	if fallbackMode {
-
-		fmt.Println("[CONSUMER] usando fallback local")
-		localPDFA(w, r)
-
-		return
-	}
-
-	resp, err := http.Get(providerURL + "/pdfa")
-
-	if err != nil || resp.StatusCode != 200 {
-
-		enableFallback()
-		localPDFA(w, r)
-
-		return
-	}
-
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-
-	fmt.Println("[CONSUMER] resposta do provider:", string(body))
-	w.Write(body)
+	fallback := plan()
+	execute(w, fallback)
 }
 
 func main() {
-	fmt.Println("================================")
-	fmt.Println("[CONSUMER] iniciando serviço")
-	fmt.Println("================================")
+	fmt.Println("Consumer iniciado em 8080/tcp")
 
 	http.HandleFunc("/pdfa", handler)
 
-	go healthMonitor()
+	go mape()
 
 	http.ListenAndServe(":8080", nil)
 }
