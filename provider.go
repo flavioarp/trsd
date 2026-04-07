@@ -14,12 +14,12 @@ func health(w http.ResponseWriter, r *http.Request) {
 
 func pdfa(w http.ResponseWriter, r *http.Request) {
 	if !enablePDFA {
-		res := "Recurso /pdfa desativado."
+		res := "Consumer solicitou o recurso /pdfa, porém está desativado."
 		http.Error(w, res, http.StatusServiceUnavailable)
 		fmt.Println(res)
 		return
 	}
-	w.Write([]byte("PDF/A gerado pelo provider!"))
+	w.Write([]byte("Consumer solicitou o recurso /pdfa... PDF/A gerado pelo provider!"))
 }
 
 func main() {

@@ -1,34 +1,20 @@
 # trsd
 
-## Compile
 
-```
-go build -o provider provider.go
-go build -o consumer consumer.go
-```
+## Build
 
-## Runtime
+```make```
 
-### Provider
+## Provider
 
-Sem PDF/A:
-```
-./provider &
-```
-<br/>
+### Sem PDF/A
 
-Com PDF/A:
-```
-./provider pdfa &
-```
+```make run-provider```
 
-### Clean
-```
-./consumer &
-```
+### Com PDF/A
 
-Limpar o ambiente
-```
-killall provider
-killall consumer`
-```
+```make run-provider-pdfa```
+
+## Consumer
+
+```make run-consumer```

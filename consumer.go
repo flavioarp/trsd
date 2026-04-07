@@ -31,12 +31,12 @@ func analyze(ok bool) {
 	defer k.mu.Unlock()
 
 	if !ok && !k.fallbackMode {
-		fmt.Println("(A) Provider indisponível -> ativando fallback")
+		fmt.Println("(A) Provider indisponível... ativando fallback")
 		k.fallbackMode = true
 	}
 
 	if ok && k.fallbackMode {
-		fmt.Println("(A) Provider recuperado -> desativando fallback")
+		fmt.Println("(A) Provider disponível... desativando fallback")
 		k.fallbackMode = false
 	}
 }
