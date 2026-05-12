@@ -1,24 +1,44 @@
-APP_PROVIDER=provider
-APP_CONSUMER=consumer
+SERVICES = monitor analyze plan knowledge execute provider
 
-.PHONY: all build run clean
+.PHONY: help build up down logs clean start-% stop-% logs-% build-%
 
-all: build
+COMPOSE = docker compose -f docker-compose.yml
+
+help:
+	@echo "Comandos disponíveis:"
+	@echo "  make build
+	@echo "  make up
+	@echo "  make down
+	@echo "  make logs
+	@echo ""
+	@echo "Serviços individuais:"
+	@echo "  make start-<service>"
+	@echo "  make stop-<service>"
+	@echo "  make logs-<service>"
 
 build:
-	go build -o build/$(APP_PROVIDER) provider.go
-	go build -o build/$(APP_CONSUMER) consumer.go
+	$(COMPOSE) build
 
-run-provider:
-	./build/$(APP_PROVIDER)
+up:
+	$(COMPOSE) up -d
 
-run-provider-pdfa:
-	./build/$(APP_PROVIDER) pdfa
+down:
+	$(COMPOSE) down
 
-run-consumer:
-	./build/$(APP_CONSUMER)
+logs:
+	$(COMPOSE) logs -f
 
 clean:
-	rm -f build/$(APP_PROVIDER) build/$(APP_CONSUMER)
-	pkill -f $(APP_PROVIDER) || true
-	pkill -f $(APP_CONSUMER) || true
+	$(COMPOSE) down -v --remove-orphans
+
+start-%:
+	$(COMPOSE) up -d $*
+
+stop-%:
+	$(COMPOSE) stop $*
+
+logs-%:
+	$(COMPOSE) logs -f $*
+
+build-%:
+	$(COMPOSE) build $*

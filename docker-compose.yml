@@ -1,0 +1,34 @@
+services:
+  monitor:
+    build:
+      context: ./monitor
+      dockerfile: ../Dockerfile
+
+  analyze:
+    build:
+      context: ./analyze
+      dockerfile: ../Dockerfile
+
+  plan:
+    build:
+      context: ./plan
+      dockerfile: ../Dockerfile
+
+  knowledge:
+    build:
+      context: ./knowledge
+      dockerfile: ../Dockerfile
+
+  execute:
+    build:
+      context: ./execute
+      dockerfile: ../Dockerfile
+    ports:
+      - "8080:8080"
+
+  provider:
+    build:
+      context: ./provider
+      dockerfile: ../Dockerfile
+    ports:
+      - "8081:8081"

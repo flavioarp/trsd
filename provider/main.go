@@ -6,20 +6,24 @@ import (
 	"os"
 )
 
+var service = "[PROVIDER]"
+
 var enablePDFA = false
 
 func health(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("ok"))
+	w.Write([]byte("O provider está saudável."))
 }
 
 func pdfa(w http.ResponseWriter, r *http.Request) {
 	if !enablePDFA {
-		res := "Consumer solicitou o recurso /pdfa, porém está desativado."
+		res := "Suporte a PDF/A está desativado."
 		http.Error(w, res, http.StatusServiceUnavailable)
-		fmt.Println(res)
+		fmt.Println(service, res)
+
 		return
 	}
-	w.Write([]byte("Consumer solicitou o recurso /pdfa... PDF/A gerado pelo provider!"))
+
+	w.Write([]byte("PDF/A gerado."))
 }
 
 func main() {
@@ -27,10 +31,12 @@ func main() {
 		enablePDFA = true
 	}
 
-	fmt.Println("[PROVIDER] iniciado em 8081/tcp | PDF/A:", enablePDFA)
+	var port = "8081"
+
+	fmt.Println(service, "Iniciado em", port, "/tcp.", " PDF/A:", enablePDFA)
 
 	http.HandleFunc("/health", health)
 	http.HandleFunc("/pdfa", pdfa)
 
-	http.ListenAndServe(":8081", nil)
+	http.ListenAndServe(":"+port, nil)
 }
