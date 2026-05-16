@@ -123,7 +123,7 @@ func modeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	data, err := os.ReadFile("pdf-a-daptive.txt")
+	data, err := os.ReadFile("logo.txt")
 	if err != nil {
 		panic(err)
 	}
