@@ -23,11 +23,13 @@ func pdfa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write([]byte("PDF/A gerado."))
+	w.Write([]byte("PDF/A gerado pelo provider."))
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "pdfa" {
+	if os.Getenv("ENABLE_PDFA") == "1" {
+		enablePDFA = true
+	} else if len(os.Args) > 1 && os.Args[1] == "pdfa" {
 		enablePDFA = true
 	}
 
