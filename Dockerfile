@@ -1,4 +1,4 @@
-FROM golang:1.22 AS builder
+FROM golang:1.22
 
 WORKDIR /app
 
@@ -7,6 +7,8 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o /bin/app
+RUN apt update && apt install -y ghostscript
+
+RUN go build -o /bin/app .
 
 CMD ["/bin/app"]

@@ -9,6 +9,6 @@ COPY . .
 
 RUN apt update && apt install -y ghostscript
 
-RUN go build -o /bin/app ./managed/provider
+RUN go build -o /bin/app .
 
 CMD ["/bin/app"]

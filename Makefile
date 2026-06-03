@@ -1,4 +1,8 @@
-SERVICES = monitor analyze plan knowledge execute provider
+MANAGED =  provider core
+
+MANAGER = monitor analyze plan execute knowledge
+
+SERVICES = $(MANAGED) $(MANAGER)
 
 .PHONY: help build up down logs clean start-% stop-% logs-% build-%
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -128,18 +129,16 @@ func main() {
 		panic(err)
 	}
 
-	content := string(data)
+	fmt.Println(string(data))
 
-	fmt.Println(content)
+	http.HandleFunc("/pdfa", getPDFAHandler)
+	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc("/mode", modeHandler)
 
 	fmt.Println("Starting PDF/A service...")
 
-	http.HandleFunc("/pdfa", getPDFAHandler)
-
-	http.HandleFunc("/health", healthHandler)
-
-	// Mode control endpoint (GET to query, POST to set)
-	http.HandleFunc("/mode", modeHandler)
-
-	http.ListenAndServe(":8082", nil)
+	err = http.ListenAndServe(":8082", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
