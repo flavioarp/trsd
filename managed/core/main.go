@@ -28,20 +28,37 @@ type PDFAResponse struct {
 	Status  string `json:"status"`
 }
 
+const authorizedCaller = "execute"
+
+const executeURL = "http://execute:8080/health"
+
 var (
 	currentMode = "provider"
 	modeMutex   sync.RWMutex
 )
 
-// getPDFAHandler handles the PDF/A generation with fallback mechanism
-// It respects the mode set by the execute service and decides whether to use
-// local generation or delegate to the provider service
+func isExecuteHealthy() bool {
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	resp, err := client.Get(executeURL)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 func getPDFAHandler(w http.ResponseWriter, r *http.Request) {
+	if !isExecuteHealthy() {
+		log.Println("Execute indisponível — forçando modo local")
+		modeMutex.Lock()
+		currentMode = "local"
+		modeMutex.Unlock()
+	}
+
 	modeMutex.RLock()
 	mode := currentMode
 	modeMutex.RUnlock()
 
-	// If mode is "local", always use local generation
 	if mode == "local" {
 		w.Header().Set("Content-Type", "application/json")
 		pdfResponse := PDFAResponse{
@@ -52,14 +69,14 @@ func getPDFAHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If mode is "provider", try to get PDF/A from provider service
+	// mode == "provider"
 	client := &http.Client{
 		Timeout: 700 * time.Millisecond,
 	}
 
 	resp, err := client.Get("http://provider:8081/pdfa")
 	if err != nil || resp.StatusCode != http.StatusOK {
-		// If provider call fails or times out, fall back to local generation
+		// Se o provider falhar, retorne um PDF/A local, ainda que o modo seja "provider"
 		w.Header().Set("Content-Type", "application/json")
 		pdfResponse := PDFAResponse{
 			Content: "PDF/A gerado localmente. O provider está indisponível ou sem suporte a PDF/A.",
@@ -70,11 +87,11 @@ func getPDFAHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// Provider service is available and healthy, return its response
+	// Passar o PDF/A do provider diretamente para o cliente, com base no status "provider"
 	w.Header().Set("Content-Type", "application/octet-stream")
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, "failed to read provider response", http.StatusInternalServerError)
+		http.Error(w, "erro ao ler resposta do provider", http.StatusInternalServerError)
 		return
 	}
 
@@ -89,8 +106,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func modeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// GET
 	if r.Method == http.MethodGet {
-		// GET: return current mode
 		modeMutex.RLock()
 		mode := currentMode
 		modeMutex.RUnlock()
@@ -99,8 +116,13 @@ func modeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// POST
 	if r.Method == http.MethodPost {
-		// POST: set new mode
+		if r.Header.Get("X-Caller") != authorizedCaller {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
 		var req ModeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)

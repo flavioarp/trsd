@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -16,7 +17,7 @@ type KnowledgeState struct {
 	Fallback bool `json:"fallback"`
 }
 
-// Sends the mode decision to the core service
+/*
 func setModeOnCore(mode string) error {
 	modeReq := ModeRequest{Mode: mode}
 	modeBody, _ := json.Marshal(modeReq)
@@ -32,6 +33,33 @@ func setModeOnCore(mode string) error {
 	}
 
 	log.Printf("Set core mode to: %s\n", mode)
+	return nil
+}
+
+*/
+
+func setModeOnCore(mode string) error {
+	modeReq := ModeRequest{Mode: mode}
+	modeBody, _ := json.Marshal(modeReq)
+
+	req, err := http.NewRequest(http.MethodPost, "http://core:8082/mode", bytes.NewBuffer(modeBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Caller", "execute")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("core retornou status %d ao setar modo", resp.StatusCode)
+	}
+
+	log.Printf("modo do core atualizado para: %s\n", mode)
 	return nil
 }
 
@@ -59,8 +87,8 @@ func determineModeFromServices() (string, error) {
 	return "provider", nil
 }
 
-func orchestrate() {
-	ticker := time.NewTicker(10 * time.Second)
+func execute() {
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -83,7 +111,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	go orchestrate()
+	go execute()
 
 	http.HandleFunc("/health", healthHandler)
 

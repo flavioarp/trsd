@@ -35,6 +35,18 @@ logs:
 clean:
 	$(COMPOSE) down -v --remove-orphans
 
+start-manager:
+	$(COMPOSE) up -d $(MANAGER)
+
+stop-manager:
+	$(COMPOSE) stop $(MANAGER)
+
+start-managed:
+	$(COMPOSE) up -d $(MANAGED)
+
+stop-managed:
+	$(COMPOSE) stop $(MANAGED)
+
 start-%:
 	$(COMPOSE) up -d $*
 
