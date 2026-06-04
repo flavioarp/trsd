@@ -17,27 +17,6 @@ type KnowledgeState struct {
 	Fallback bool `json:"fallback"`
 }
 
-/*
-func setModeOnCore(mode string) error {
-	modeReq := ModeRequest{Mode: mode}
-	modeBody, _ := json.Marshal(modeReq)
-	resp, err := http.Post("http://core:8082/mode", "application/json", bytes.NewBuffer(modeBody))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Failed to set mode on core: status %d\n", resp.StatusCode)
-		return err
-	}
-
-	log.Printf("Set core mode to: %s\n", mode)
-	return nil
-}
-
-*/
-
 func setModeOnCore(mode string) error {
 	modeReq := ModeRequest{Mode: mode}
 	modeBody, _ := json.Marshal(modeReq)

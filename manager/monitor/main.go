@@ -26,6 +26,6 @@ func main() {
 
 		http.Post("http://analyze:8082/analyze", "application/json", bytes.NewBuffer(body))
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
