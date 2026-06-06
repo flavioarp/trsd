@@ -1,0 +1,59 @@
+services:
+  monitor:
+    build:
+      context: ./manager/monitor
+      dockerfile: ../../Dockerfile
+
+  analyze:
+    build:
+      context: ./manager/analyze
+      dockerfile: ../../Dockerfile
+
+  plan:
+    build:
+      context: ./manager/plan
+      dockerfile: ../../Dockerfile
+
+  knowledge:
+    build:
+      context: ./manager/knowledge
+      dockerfile: ../../Dockerfile
+
+  execute:
+    build:
+      context: ./manager/execute
+      dockerfile: ../../Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - core
+      - knowledge
+
+  provider1:
+    build:
+      context: ./managed/provider
+      dockerfile: Dockerfile
+    hostname: provider1
+    ports:
+      - "8081:8081"
+    environment:
+      - ENABLE_PDFA=true
+
+  provider2:
+    build:
+      context: ./managed/provider
+      dockerfile: Dockerfile
+    hostname: provider2
+    ports:
+      - "8083:8081" # Porta mapeada diferente para acesso externo (opcional)
+    environment:
+      - ENABLE_PDFA=true # Começamos com um desativado para testar o fallback/balanceamento
+
+  core:
+    build:
+      context: ./managed/core
+      dockerfile: ../../Dockerfile
+    ports:
+      - "8082:8082"
+    depends_on:
+      - knowledge
