@@ -7,12 +7,13 @@ import (
 )
 
 type State struct {
-	Fallback bool `json:"fallback"`
+	Fallback        bool     `json:"fallback"`
+	ActiveProviders []string `json:"active_providers"`
 }
 
 var (
 	mu    sync.RWMutex
-	state = State{Fallback: false}
+	state = State{Fallback: false, ActiveProviders: make([]string, 0)}
 )
 
 func getState(w http.ResponseWriter, r *http.Request) {

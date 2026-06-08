@@ -7,7 +7,8 @@ import (
 )
 
 type Input struct {
-	Fallback bool `json:"fallback"`
+	Fallback        bool     `json:"fallback"`
+	ActiveProviders []string `json:"active_providers"`
 }
 
 func plan(w http.ResponseWriter, r *http.Request) {

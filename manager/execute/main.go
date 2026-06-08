@@ -9,16 +9,29 @@ import (
 	"time"
 )
 
-type ModeRequest struct {
-	Mode string `json:"mode"`
-}
-
+// Estrutura que representa a resposta do Knowledge Service
 type KnowledgeState struct {
-	Fallback bool `json:"fallback"`
+	Fallback        bool     `json:"fallback"`
+	ActiveProviders []string `json:"active_providers"`
 }
 
-func setModeOnCore(mode string) error {
-	modeReq := ModeRequest{Mode: mode}
+// Estrutura para enviar o comando de mudança de contexto para o Core
+type ModeRequest struct {
+	Mode      string   `json:"mode"`
+	Providers []string `json:"providers"`
+}
+
+// Envia a decisão (Modo de Operação e Lista de Providers) para o sistema gerenciado (Core)
+func setModeOnCore(state KnowledgeState) error {
+	mode := "provider"
+	if state.Fallback {
+		mode = "local"
+	}
+
+	modeReq := ModeRequest{
+		Mode:      mode,
+		Providers: state.ActiveProviders,
+	}
 	modeBody, _ := json.Marshal(modeReq)
 
 	req, err := http.NewRequest(http.MethodPost, "http://core:8082/mode", bytes.NewBuffer(modeBody))
@@ -38,32 +51,29 @@ func setModeOnCore(mode string) error {
 		return fmt.Errorf("core retornou status %d ao setar modo", resp.StatusCode)
 	}
 
-	log.Printf("modo do core atualizado para: %s\n", mode)
+	log.Printf("modo do core atualizado para: %s | providers: %v\n", mode, state.ActiveProviders)
 	return nil
 }
 
-// determineModeFromServices queries the knowledge service to determine the mode
-// The plan service only forwards writes to the knowledge service, so querying
-// it for orchestration decisions is redundant.
-func determineModeFromServices() (string, error) {
-	// Query knowledge service
+// Consulta o serviço de conhecimento (Knowledge) para determinar as diretrizes
+func determineStateFromKnowledge() (KnowledgeState, error) {
+	var state KnowledgeState
+
 	knowledgeResp, err := http.Get("http://knowledge:8084/state")
 	if err != nil {
-		log.Printf("Error querying knowledge service: %v\n", err)
-		return "local", nil
+		log.Printf("Erro ao consultar serviço knowledge: %v\n", err)
+		state.Fallback = true // Assume fallback por segurança se o knowledge cair
+		return state, err
 	}
 	defer knowledgeResp.Body.Close()
 
-	var knowledgeState KnowledgeState
-	if err := json.NewDecoder(knowledgeResp.Body).Decode(&knowledgeState); err != nil {
-		log.Printf("Error parsing knowledge state: %v\n", err)
-		return "local", nil
+	if err := json.NewDecoder(knowledgeResp.Body).Decode(&state); err != nil {
+		log.Printf("Erro ao fazer parse do estado de knowledge: %v\n", err)
+		state.Fallback = true
+		return state, err
 	}
 
-	if knowledgeState.Fallback {
-		return "local", nil
-	}
-	return "provider", nil
+	return state, nil
 }
 
 func execute() {
@@ -71,19 +81,18 @@ func execute() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		mode, err := determineModeFromServices()
+		state, err := determineStateFromKnowledge()
 		if err != nil {
-			log.Printf("Error determining mode: %v\n", err)
-			continue
+			log.Printf("Aviso: Forçando fallback devido à falha de comunicação interna: %v\n", err)
 		}
 
-		if err := setModeOnCore(mode); err != nil {
-			log.Printf("Error setting mode on core: %v\n", err)
+		if err := setModeOnCore(state); err != nil {
+			log.Printf("Erro ao definir modo no core: %v\n", err)
 		}
 	}
 }
 
-// healthHandler provides a health check endpoint
+// Endpoint de health check usado pelo core para validar se o manager está de pé
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"healthy": true}`))
@@ -94,5 +103,6 @@ func main() {
 
 	http.HandleFunc("/health", healthHandler)
 
+	log.Println("Starting Execute service no :8080...")
 	http.ListenAndServe(":8080", nil)
 }

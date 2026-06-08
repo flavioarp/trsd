@@ -11,16 +11,14 @@ import (
 	"time"
 )
 
-type State struct {
-	Fallback bool `json:"fallback"`
-}
-
 type ModeRequest struct {
-	Mode string `json:"mode"` // "local" or "provider"
+	Mode      string   `json:"mode"` // "local" or "provider"
+	Providers []string `json:"providers"`
 }
 
 type ModeResponse struct {
-	Mode string `json:"mode"`
+	Mode      string   `json:"mode"`
+	Providers []string `json:"providers"`
 }
 
 type PDFAResponse struct {
@@ -29,12 +27,13 @@ type PDFAResponse struct {
 }
 
 const authorizedCaller = "execute"
-
 const executeURL = "http://execute:8080/health"
 
 var (
-	currentMode = "provider"
-	modeMutex   sync.RWMutex
+	currentMode     = "provider"
+	activeProviders = []string{}
+	providerIndex   = 0 // Usado para rotacionar no Load Balancer (Round-Robin)
+	modeMutex       sync.RWMutex
 )
 
 func isExecuteHealthy() bool {
@@ -43,43 +42,52 @@ func isExecuteHealthy() bool {
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
 }
 
 func getPDFAHandler(w http.ResponseWriter, r *http.Request) {
+	modeMutex.Lock()
+	// Verificação de segurança: Se o próprio gerente (MAPE) tiver caído, assume independência
 	if !isExecuteHealthy() {
 		log.Println("Execute indisponível — forçando modo local")
-		modeMutex.Lock()
 		currentMode = "local"
-		modeMutex.Unlock()
 	}
 
-	modeMutex.RLock()
 	mode := currentMode
-	modeMutex.RUnlock()
+	providers := activeProviders
 
-	if mode == "local" {
+	// Lógica de Load Balancing (Round-Robin)
+	var selectedProvider string
+	if len(providers) > 0 {
+		selectedProvider = providers[providerIndex%len(providers)]
+		providerIndex++
+	}
+	modeMutex.Unlock()
+
+	// Entra em contingência direta se o modo for local ou se a lista de providers for enviada vazia
+	if mode == "local" || len(providers) == 0 {
 		w.Header().Set("Content-Type", "application/json")
 		pdfResponse := PDFAResponse{
-			Content: "PDF/A gerado localmente",
+			Content: "PDF/A gerado localmente (Fallback ou Nenhum Provider Ativo)",
 			Status:  "local",
 		}
 		json.NewEncoder(w).Encode(pdfResponse)
 		return
 	}
 
-	// mode == "provider"
+	// Tenta acessar o provider que foi selecionado pelo Round-Robin
 	client := &http.Client{
 		Timeout: 700 * time.Millisecond,
 	}
 
-	resp, err := client.Get("http://provider:8081/pdfa")
+	resp, err := client.Get(selectedProvider + "/pdfa")
 	if err != nil || resp.StatusCode != http.StatusOK {
-		// Se o provider falhar, retorne um PDF/A local, ainda que o modo seja "provider"
+		// Tolerância a falhas na execução: Mesmo que o provider fosse válido 1 segundo atrás, 
+		// caso ele caia nesse exato momento, aciona contingência na mesma requisição.
 		w.Header().Set("Content-Type", "application/json")
 		pdfResponse := PDFAResponse{
-			Content: "PDF/A gerado localmente. O provider está indisponível ou sem suporte a PDF/A.",
+			Content: fmt.Sprintf("PDF/A gerado localmente. O provider %s está indisponível neste momento.", selectedProvider),
 			Status:  "fallback_error",
 		}
 		json.NewEncoder(w).Encode(pdfResponse)
@@ -87,7 +95,7 @@ func getPDFAHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// Passar o PDF/A do provider diretamente para o cliente, com base no status "provider"
+	// Passar o PDF/A com sucesso, direto para o cliente do Core
 	w.Header().Set("Content-Type", "application/octet-stream")
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -106,17 +114,18 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func modeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// GET
+	// GET: Retorna o status atual
 	if r.Method == http.MethodGet {
 		modeMutex.RLock()
 		mode := currentMode
+		providers := activeProviders
 		modeMutex.RUnlock()
 
-		json.NewEncoder(w).Encode(ModeResponse{Mode: mode})
+		json.NewEncoder(w).Encode(ModeResponse{Mode: mode, Providers: providers})
 		return
 	}
 
-	// POST
+	// POST: Usado pelo serviço Manager (execute) para alterar as políticas dinâmicas
 	if r.Method == http.MethodPost {
 		if r.Header.Get("X-Caller") != authorizedCaller {
 			http.Error(w, "forbidden", http.StatusForbidden)
@@ -136,9 +145,10 @@ func modeHandler(w http.ResponseWriter, r *http.Request) {
 
 		modeMutex.Lock()
 		currentMode = req.Mode
+		activeProviders = req.Providers
 		modeMutex.Unlock()
 
-		json.NewEncoder(w).Encode(ModeResponse{Mode: req.Mode})
+		json.NewEncoder(w).Encode(ModeResponse{Mode: req.Mode, Providers: req.Providers})
 		return
 	}
 
@@ -146,18 +156,17 @@ func modeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Logo é opcional. Previne panic caso rodando de outro diretório ou se faltando o txt
 	data, err := os.ReadFile("logo.txt")
-	if err != nil {
-		panic(err)
+	if err == nil {
+		fmt.Println(string(data))
 	}
-
-	fmt.Println(string(data))
 
 	http.HandleFunc("/pdfa", getPDFAHandler)
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/mode", modeHandler)
 
-	fmt.Println("Starting PDF/A service...")
+	fmt.Println("Starting PDF/A Core service em :8082...")
 
 	err = http.ListenAndServe(":8082", nil)
 	if err != nil {

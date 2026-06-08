@@ -29,15 +29,25 @@ services:
       - core
       - knowledge
 
-  provider:
+  provider1:
     build:
       context: ./managed/provider
-      #dockerfile: ../../Dockerfile
       dockerfile: Dockerfile
+    hostname: provider1
     ports:
       - "8081:8081"
     environment:
-      - ENABLE_PDFA=${ENABLE_PDFA:-false}
+      - ENABLE_PDFA=true
+
+  provider2:
+    build:
+      context: ./managed/provider
+      dockerfile: Dockerfile
+    hostname: provider2
+    ports:
+      - "8083:8081" # Porta mapeada diferente para acesso externo (opcional)
+    environment:
+      - ENABLE_PDFA=true # Começamos com um desativado para testar o fallback/balanceamento
 
   core:
     build:

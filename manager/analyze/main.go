@@ -1,3 +1,4 @@
+// trsd-main/manager/analyze/main.go
 package main
 
 import (
@@ -7,17 +8,19 @@ import (
 )
 
 type Input struct {
-	ProviderOK bool `json:"provider_ok"`
+	ActiveProviders []string `json:"active_providers"`
 }
 
 func analyze(w http.ResponseWriter, r *http.Request) {
 	var in Input
 	json.NewDecoder(r.Body).Decode(&in)
 
-	fallback := !in.ProviderOK
+	// Fallback ativado apenas se nenhum provider estiver ativo e habilitado
+	fallback := len(in.ActiveProviders) == 0
 
-	body, _ := json.Marshal(map[string]bool{
-		"fallback": fallback,
+	body, _ := json.Marshal(map[string]interface{}{
+		"fallback":         fallback,
+		"active_providers": in.ActiveProviders,
 	})
 
 	http.Post("http://plan:8083/plan", "application/json", bytes.NewBuffer(body))
