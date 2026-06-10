@@ -7,7 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN apt update && apt install -y ghostscript
+RUN apt update
 
 RUN go build -o /bin/app .
 

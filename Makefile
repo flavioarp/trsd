@@ -1,4 +1,4 @@
-MANAGED =  provider core
+MANAGED =  provider1 provider2 core
 
 MANAGER = monitor analyze plan execute knowledge
 
